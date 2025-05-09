@@ -1,0 +1,974 @@
+//Author: Stefan Hansch
+//Version: 05-04-2025
+
+< !DOCTYPE html >
+	<html>
+		<head>
+			<script src="gene.js"></script>
+			<script src="statistics.js"></script>
+			<script src="https://d3js.org/d3.v6.min.js"></script>
+			<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+			<body>
+				<style>
+					body {font: 11px Arial;}
+				</style>
+		</head>
+		<body>
+			<form id="myForm">
+				<input type="file" id="csvFile" accept=".csv" />
+				<br />
+				<input type="submit" value="Submit" />
+			</form>
+			<script>
+
+				const myForm = document.getElementById("myForm");
+				const csvFile = document.getElementById("csvFile");
+				list = { };
+				geneList = { };
+				workingList ={ };
+				statisticsInstance = new Statistics("test", geneList);;
+				time = 0 ;
+				const impact = { };
+				key = "";
+				lastYRect = 0;
+				minValue = 0;
+				maxValue = 0;
+				myRedColor = { };
+				myGreenColor = { };
+				myForm.addEventListener("submit", function (e) {
+					e.preventDefault();
+				const input = csvFile.files[0];
+				const reader = new FileReader();
+				const text ="";
+				reader.onload = function (e) {
+        	const text = e.target.result;
+				data = csvToArray(text);
+				const stat = new Statistics("test", geneList);
+				statisticsInstance = stat;
+				statisticsInstance.initialCalc();
+				//change here for Validation
+				//statisticsInstance.ValidationlCalc();
+				//statisticsInstance.TimeValidationlCalc();
+				drawBaseLine(data);
+    	    };
+				reader.readAsText(input);
+				document.getElementById("csvFile").style.display="none";
+				document.getElementById("myForm").style.display="none";
+      }
+				);
+
+				function responsivefy(svg) {
+    	  const container = d3.select(svg.node().parentNode),
+				width = parseInt(svg.style('width'), 10),
+				height = parseInt(svg.style('height'), 10),
+				aspect = width / height;
+
+				console.log("viewBox"+svg.attr('viewBox')+width);
+
+				svg.attr('viewBox', `0 0 ${width} ${height}`)
+				.attr('preserveAspectRatio', 'xMinYMin meet')
+				.call(resize);
+				d3.select(window).on(
+				'resize.' + container.attr('id'),
+				resize
+				);
+
+				function resize() {
+    	      const w = parseInt(container.style('width'));
+				const h = parseInt(container.style('height'))
+				svg.attr('width', w);
+				svg.attr('height', Math.round(w / aspect));
+    	  }
+    	}
+
+
+
+				function csvToArray(str, delimiter = ",") {
+					str = str.replaceAll("\"", "");
+				str = str.replaceAll("(", "\(");
+				str = str.replaceAll(")", "\)");
+				const headers = str.slice(0, str.indexOf("\n")).split(delimiter);
+				const rows = str.slice(str.indexOf("\n") + 1).split("\n");
+				for (let i=1; i < headers.length; i++){
+					list[headers[i]] = {};
+				geneList[headers[i]] = new Gene(headers[i]);
+				workingList[headers[i]] = { };
+				let tempForFirstValue = headers[i];
+				impact[headers[i]] = 0;
+
+				for (let rowRunner=0; rowRunner<rows.length; rowRunner++)
+				{
+					let rowValues = rows[rowRunner].split(delimiter);
+				let tempForSecondValue = rowValues[0];
+				for (let values = 1; values < rowValues.length; values++)
+				if (values==i)
+				{
+					list[tempForFirstValue][tempForSecondValue] = rowValues[i];
+				workingList[tempForFirstValue][tempForSecondValue] =rowValues[i];
+				if (tempForFirstValue!=tempForSecondValue){
+					impact[tempForFirstValue] = parseFloat(impact[tempForFirstValue]) + Math.abs(parseFloat(workingList[tempForFirstValue][tempForSecondValue]));
+    				  	}
+				if (tempForFirstValue==tempForSecondValue){
+        				  ;
+        				  	}
+    				  }
+    		  
+    		  }
+				geneList[headers[i]].setList(list[headers[i]], workingList[headers[i]]);
+				geneList[headers[i]].setImpact(impact[headers[i]]);
+				geneList[headers[i]].printThis();
+				myRedColor = d3.scaleSequential().domain([-2,0])
+				.interpolator(d3.interpolateRgb("orange", "FireBrick"));
+				myGreenColor = d3.scaleSequential().domain([0,2])
+				.interpolator(d3.interpolateRgb("DarkSeaGreen", "DarkGreen"));
+      	}
+				return list;
+    }
+
+
+				function calculatePercentage(key)
+				{
+					testVar = trimTextToValid(key)
+
+    	if (geneList[key].getTilt()==false )
+				{
+					compleVal = 0;
+				for (i in geneList)
+				{
+    			if (geneList[i].getTilt()==false )
+				{
+					compleVal = compleVal + Math.exp(parseFloat(geneList[i].getValue(i)));
+    					}
+    			}
+
+				let worth = Math.exp(parseFloat(geneList[key].getValue(key)))/compleVal*100;
+				return worth.toFixed(2)+"%";
+    }
+				else
+				{
+    	
+		return "NaN";
+		}
+    	
+    }
+
+
+				function calculateWorkingListPercentage(key)
+				{
+					testVar = trimTextToValid(key)
+    	
+    	if (geneList[key].getTilt()==false && geneList[key].getWorkingValue(key)!="NA")
+				{
+					let compleVal = 0;
+				for (i in geneList)
+				{
+    			if (geneList[i].getTilt()==false  && geneList[i].getWorkingValue(i)!="NA")
+				{
+					compleVal = compleVal + Math.exp(parseFloat(geneList[i].getWorkingValue(i)));
+    					}
+				}
+				let baseworth =calculatePercentage(key);
+				let worth = Math.exp(parseFloat(geneList[key].getWorkingValue(key)))/compleVal*100-parseFloat(baseworth.slice(0, -1));
+				return worth.toFixed(2)+'%';
+    }
+				else
+				{
+		return "NaN";
+		}
+    	
+    }
+
+				function reset() {
+					time = 0;
+				let lastIndex;
+				for (let key in geneList)
+				{
+					if (geneList[key].getTilt()==true)
+				{
+					let hilfsstring = trimTextToValid(key);
+				console.log(hilfsstring);
+				d3.select('#baseRect'+hilfsstring).dispatch('click');
+					}
+				geneList[key].setWorkingTilt(geneList[key].getTilt());
+				geneList[key].setWorkingValue(key, geneList[key].getValue(key));
+				lastIndex=key;
+                }
+				statisticsInstance.initialCalc();
+				hilfsstring = trimTextToValid(lastIndex);
+				d3.select('#baseRect'+hilfsstring).dispatch('mouseover');
+				d3.select('#baseRect'+hilfsstring).dispatch('mouseout');
+				updateBaseLine();
+}
+
+				function newDataset() {
+					document.getElementById('myForm').submit();
+}
+
+				function compare(key1, key2)
+				{	
+		if (geneList[key1].getValue(key1) > geneList[key2].getValue(key2)) return 1;
+				if (geneList[key1].getValue(key1) < geneList[key2].getValue(key2)) return -1;
+
+				return 0;
+	}
+
+
+
+				function sortData(data) {
+					let ordered = { };
+				let compareFunction = function(a, b) {
+
+					aV = data[a].getValue(a);
+				bV = data[b].getValue(b);
+
+				aTilt = data[a].getTilt();
+				bTilt = data[b].getTilt();
+
+				aTiltV = data[a].getStart(calculatePercentage(a));
+				bTiltV = data[b].getStart(calculatePercentage(b));
+				if (aTilt || bTilt)
+				{
+		if (aTilt && bTilt)
+				return aTiltV-bTiltV;
+				if(aTilt){
+   			 return 1; 
+ 		 }
+				if (bTilt)
+				{
+			 return -1;
+	 	}
+	}
+
+				else {
+    return bV-aV;
+  } }
+
+				Object.keys(data).sort(compareFunction).forEach(function(key) {
+					ordered[key] = data[key];
+  });
+				return ordered;
+}
+
+
+				function calculateProgressbarwidth(item)
+				{
+					let thisTime = geneList[item].getStart();
+				let diff = time - thisTime;
+				if (geneList[item].getTilt()==false)
+				{return 0;}
+				if (time<1)
+				return (diff*500)+3;
+				if (time==1)
+				return diff*500;
+	}
+
+				function calculateProgressbarX(item, xiterator)
+				{
+					let thisTime = geneList[item].getStart();
+				//let diff = time - thisTime;
+				if (geneList[item].getTilt()==false)
+				{return 0;}
+
+				return xiterator+thisTime*500;
+	}
+
+
+
+				function trimTextToValid(text)
+				{
+					let hilfsstring = text;
+				hilfsstring=hilfsstring.replaceAll(")", "");
+				hilfsstring=hilfsstring.replaceAll("(", "");
+				hilfsstring=hilfsstring.replaceAll("+", "plus");
+				hilfsstring=hilfsstring.replaceAll("-", "");
+				return hilfsstring;
+    }
+
+
+				function goodOutputText(text)
+				{
+					let hilfsstring = Math.exp(parseFloat(text)).toFixed(2);
+				return hilfsstring;
+    }
+
+				function simulateTumor(d,i)
+				{
+		while (time<1)
+				{
+					simulateMevent(d, i);
+		}
+				updateBaseLine();
+
+	}
+				function randomExponential(rate)
+				{
+					let rand = Math.random();
+				return -Math.log(rand)/rate;
+	}
+
+				function getRandomEvent(d,i)
+				{
+
+		var num = Math.random();
+				s = 0;
+				for (let key in geneList) {
+					let temp = calculatePercentage(key);
+				if (temp != "NaN"){
+					temp = temp.replace('%', '');
+				temp = temp/100;
+				s += temp;
+				if (num < s) {
+            return key;
+			}
+        }
+    }
+
+				return;
+	}
+
+				function simulateMevent(d,i)
+				{
+		if (time<1)
+				{
+					let sumOfRates=0;
+				for (let key in geneList) {
+				if (geneList[key].getTilt()!=true)
+				{let rate = geneList[key].getValue(key);
+				sumOfRates+=Math.exp(rate);}
+			}
+				let timeToEvent = randomExponential(sumOfRates);
+				if (time+timeToEvent<1)
+				{
+					let event = getRandomEvent();
+				let hilfsstring = trimTextToValid(event);
+				time += timeToEvent;
+				geneList[event].setStart(time);
+				d3.select('#baseRect'+hilfsstring).dispatch('click');
+				d3.select('#baseRect'+hilfsstring).dispatch('mouseout');
+				statisticsInstance.initialCalc();
+				updateBaseLine();
+				return;
+			}
+				else
+				{
+					time = 1;
+				statisticsInstance.initialCalc();
+				let pseudoArrayKeys = Object.keys(geneList);
+				let valueInFirstElementInPseudoArray = geneList[pseudoArrayKeys[0]];
+				let randomevent = trimTextToValid(valueInFirstElementInPseudoArray.getName());
+				d3.select('#baseRect'+randomevent).dispatch('mouseout');
+				updateBaseLine();
+				return;
+			}
+		}
+				else {
+					updateBaseLine();
+			return;}
+
+	}
+
+				function handleMouseclick(d,i)
+				{
+				if (geneList[d3.select(this).attr('text')].getTilt()==false)
+				{
+					let key = d3.select(this).attr('text');
+				let stringe =trimTextToValid(key);
+				d3.select('#baseRect'+stringe).dispatch('mouseout');
+
+				geneList[d3.select(this).attr('text')].setTilt(true);
+				plusValue(d3.select(this).attr('text'));
+				statisticsInstance.initialCalc();
+				return ;
+		  }
+				else if  (geneList[d3.select(this).attr('text')].getTilt()==true)
+				{
+					geneList[d3.select(this).attr('text')].setTilt(false);
+				minusValue(d3.select(this).attr('text'));
+				statisticsInstance.initialCalc();
+				return;
+		  }
+    }
+
+				function handleMouseOver(d,i)
+				{
+					let key = d3.select(this).attr('text');
+				let stringe =trimTextToValid(key);
+				let xValueLast = 0;
+				if (geneList[key].getTilt()!=true)
+				{
+					d3.select('#v0Rect' + stringe).style("stroke-width", 3).style("stroke", "gray");
+				d3.select('#vRect'+stringe).style("stroke-width", 3).style("stroke", "gray");
+				d3.select('#impactRect'+stringe).style("stroke-width", 3).style("stroke", "gray");
+				d3.select('#timeRect'+stringe).style("stroke-width", 3).style("stroke", "gray");
+				d3.select('#deltaRect').transition().duration(500).style("opacity", 0);
+				d3.select('#deltaText').transition().duration(500).style("opacity", 1);
+				d3.select(this).style("stroke-width", 3).style("stroke", "gray");
+				for (tempKey in geneList)
+				{
+					let stringe= trimTextToValid(tempKey);
+				d3.select('body').select('svg').select('#vRect'+stringe).transition().duration(500).style("opacity", 1);
+				d3.select('body').select('svg').select('#v'+stringe).transition().duration(500).style("opacity", 1);
+				xValueLast = d3.select('body').select('svg').select('#vRect'+stringe).attr('x');
+				if (key!=tempKey)
+				{
+					geneList[tempKey].setWorkingTilt(geneList[tempKey].getTilt());
+				geneList[tempKey].setWorkingValue(tempKey, parseFloat(geneList[tempKey].getWorkingValue(tempKey))+parseFloat(geneList[key].getValue(tempKey)));
+				}
+				if (key===tempKey)
+				{
+					//console.log("hier");
+					geneList[tempKey].setWorkingValue(tempKey, "NA");
+				geneList[tempKey].setWorkingTilt(true);
+			}
+
+			}
+				let newValue = parseInt(xValueLast)+51;
+				console.log((newValue));
+				updateBaseLine();
+				d3.select('#upperApaLine').transition().duration(500).attr('x2', newValue).attr('stroke', 'black');
+				d3.select('#LowerApaLine').transition().duration(500).attr('x2', newValue).attr('stroke', 'black');
+				d3.select('#LowApaLine').transition().duration(500).attr('x2', newValue).attr('stroke', 'black');			
+		}
+	}
+				function handleMouseOut(d,i)
+				{
+					let key = d3.select(this).attr('text');
+				let stringe =trimTextToValid(key);
+				let xValueLast = 0;
+				if (geneList[key].getTilt()!=true)
+				{
+					d3.select(this).style("stroke-width", 0).style("stroke", "white");
+				d3.select('#v0Rect'+stringe).style("stroke-width", 0).style("stroke", "white");
+				d3.select('#vRect'+stringe).style("stroke-width", 0).style("stroke", "white");
+				d3.select('#impactRect'+stringe).style("stroke-width", 0).style("stroke", "white");
+				d3.select('#timeRect'+stringe).style("stroke-width", 0).style("stroke", "white");
+				d3.select('#deltaRect').transition().duration(500).style("opacity", 0).style("stroke-width", 0).style("stroke", "white");
+				d3.select('#deltaText').transition().duration(500).style("opacity", 0).style("stroke-width", 0).style("stroke", "white");
+				for (tempKey in geneList)
+				{
+					let stringe= trimTextToValid(tempKey);
+				d3.select('body').select('svg').select('#vRect'+stringe).transition().duration(500).style("opacity", 0);
+				d3.select('body').select('svg').select('#v'+stringe).transition().duration(500).style("opacity", 0);
+				d3.select('#deltaText').transition().duration(500).style("opacity", 0);
+				xValueLast = d3.select('body').select('svg').select('#vRect'+stringe).attr('x');
+				{
+					geneList[tempKey].setWorkingValue(tempKey, parseFloat(geneList[tempKey].getValue(tempKey)));
+				}
+				if (key === tempKey && geneList[tempKey].getTilt()!=true)
+				{
+					geneList[tempKey].setWorkingTilt(false);
+				}
+			
+			}
+				let newValue = parseInt(xValueLast);
+				console.log((newValue));
+				updateBaseLine();
+				d3.select('#upperApaLine').transition().duration(500).attr('x2', newValue).attr('stroke', 'black');
+				d3.select('#LowerApaLine').transition().duration(500).attr('x2', newValue).attr('stroke', 'black');
+				d3.select('#LowApaLine').transition().duration(500).attr('x2', newValue).attr('stroke', 'black');		
+	}
+    }
+				function plusValue(key) 	 {
+    	
+    	for (tempKey in geneList)
+				{	
+		 if (key!=tempKey)
+				{
+					geneList[tempKey].setValue(tempKey, parseFloat(geneList[tempKey].getValue(tempKey)) + parseFloat(geneList[key].getValue(tempKey)));}
+				geneList[tempKey].setWorkingValue(tempKey, geneList[tempKey].getValue(tempKey));
+		 }
+				geneList[key].setStart(time);
+				updateBaseLine();
+	 }
+
+				function minusValue(key) 	 {
+	        	for (tempKey in geneList)
+				{	
+	    		 if (key!=tempKey)
+				{
+					geneList[tempKey].setValue(tempKey, parseFloat(geneList[tempKey].getValue(tempKey)) - parseFloat(geneList[key].getWorkingValue(tempKey)));
+				geneList[tempKey].setWorkingValue(tempKey, geneList[tempKey].getValue(tempKey));
+	    			}
+	    		 }
+				geneList[key].setStart(1);
+				updateBaseLine();
+	    	 }
+
+				function positionXToTextDelta(text)
+				{
+					let textString = text.toString();
+				if (textString.length==3)
+				{
+			return 10;
+		}
+				if (textString.length==4)
+				{
+			return 20;
+		}
+
+				if (textString.length==5)
+				{
+			return 5;
+		}
+
+				if (textString.length==6)
+				{
+			return 3;
+		}
+
+				if (textString.length==7)
+				{
+			return -2;
+		}
+				return 0;
+	}
+
+				function updateBaseLine(d,i)
+				{
+					let ordered = sortData(geneList);
+				for (item in ordered)
+				{
+					geneList[item] = ordered[item];
+		}
+				let yiterator = 85;
+				let xiterator = 10;
+				for ( item in ordered) {
+					let xiterator = 10;
+				let stringe= trimTextToValid(item);
+				d3.select('body').select('svg').select('#baseRect'+stringe)
+				.attr('x', xiterator)
+				.attr('y', yiterator-18)
+				.attr('width', 101)
+				.attr('height', 25)
+				.attr("fill", geneList[item].getTiltColor(item, myRedColor, myGreenColor))
+				.attr('stroke', 'white');
+
+
+				d3.select('body').select('svg').select('#baseText'+stringe).text(item)
+				.attr('x', xiterator).attr('y', yiterator-2);
+				xiterator+=101;
+				d3.select('body').select('svg').select('#impactRect'+stringe).attr('x', xiterator).attr('y', yiterator-18)
+				.attr("fill", geneList[item].getTiltColor(item, myRedColor, myGreenColor));
+
+
+				d3.select('body').select('svg').select('#impactText'+stringe).attr('x', xiterator+(150/2)-11)
+				.attr('y', yiterator-2);
+
+
+				xiterator+=150;
+				let hilfsstring = trimTextToValid(key);
+				d3.select('body').select('svg').select('#timeRect'+stringe).attr('x', xiterator)
+				.attr('y', yiterator-18).attr("fill", geneList[item].getTiltColor(item, myRedColor, myGreenColor));
+
+				let temp = parseInt(geneList[item].getCounter())/100;
+				temp = temp.toFixed(2)+"%";
+				d3.select('body').select('svg').select('#timeText'+stringe).attr('x', xiterator+75-15)
+				.attr('y', yiterator-2).text((temp));
+
+				xiterator+=150;
+				d3.select('body').select('svg').select('#v0Rect'+stringe).attr('x', xiterator)
+				.attr('y', yiterator-18).attr("fill", geneList[item].getTiltColor(item, myRedColor, myGreenColor));
+				d3.select('body').select('svg').select('#v0'+stringe).attr('x', xiterator+80-20)
+				.attr('y', yiterator-2)
+				.text(calculatePercentage(item));
+
+				xiterator+=150;
+				d3.select('body').select('svg').select('#vRect'+stringe).attr('x', xiterator)
+				.attr('y', yiterator-18).attr("fill", geneList[item].getTiltColor(item, myRedColor, myGreenColor));
+
+
+				d3.select('body').select('svg').select('#v'+stringe).attr('x', xiterator+positionXToTextDelta(calculateWorkingListPercentage(item))+5)
+				.attr('y', yiterator-2)
+				.text(calculateWorkingListPercentage(item));
+
+
+				xiterator+=60;
+				// Progressbar
+
+				d3.select('body').select('svg').select('#progressRect'+stringe)
+				.attr('x', calculateProgressbarX(item, xiterator))
+				.attr('y', yiterator-18)
+				.attr('width', calculateProgressbarwidth(item, xiterator));
+
+				yiterator=yiterator+29;
+			
+  		}
+				d3.select('#upperApaLine').attr('stroke', 'black');
+				d3.select('#LowerApaLine').attr('stroke', 'black');
+				d3.select('#LowApaLine');
+	}
+
+				function drawBaseLine(data)
+				{
+					geneList = sortData(geneList);
+
+				let numberOfGenes = 0;
+				for ( key in geneList) {
+					numberOfGenes++;
+	}
+				console.log(numberOfGenes);
+				d3.select('body').append('svg')
+				.attr("width", 1180	).attr("height", numberOfGenes*25+200)
+				.call(responsivefy);
+
+
+				let xiterator =10;
+				let iterator = 60;
+				let baseXIterator = xiterator;
+				let baseyIterator = iterator;
+				//Upper Apa-Lines
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator)
+				.attr('y', iterator-50)
+				.attr("font-weight", 800)
+				.style("stroke-width", 0.5)
+				.text("Interactive Table 1");
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator)
+				.attr('y', iterator-31)
+				.attr('font-style', "italic")
+				.attr("font-weight", 100)
+				.style("stroke-width", 0.8)
+				.text("Simulation of prospective tumor mutations using modified Gillespie algorithm");
+
+				//Gene Column
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 101)
+				.attr('height', 25)
+				.attr('fill', 'white').style("opacity", 0);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator)
+				.attr('y', iterator-2)
+				.style("stroke-width", 0.8)
+				.text("Gene");
+
+
+				for ( key in geneList) {
+
+
+					iterator = iterator + 29;
+				let hilfsstring = trimTextToValid(key);
+
+				d3.select('body').select('svg').append('rect')
+				.data(key)
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 101)
+				.attr('height', 25)
+				.attr('stroke', 'white')
+				.style("stroke-width", 0)
+				.attr('fill', 'white')
+				.attr('text', key)
+				.attr('id', 'baseRect'+hilfsstring)
+				.on("mouseover", handleMouseOver)
+				.on("mouseout", handleMouseOut)
+				.on("click", handleMouseclick).style("opacity", 1);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator)
+				.attr('y', iterator-2)
+				.attr("font-weight", 100)
+				.style("stroke-width", 0.8)
+				.attr('id', 'baseText'+hilfsstring)
+				.text(key);
+		}
+				iterator=iterator+29;
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator)
+				.attr('y', iterator)
+				.attr("font-weight", 100)
+				.style("stroke-width", 0.8)
+				.text("Note. Impact is calculated on how much the mutation of this gene influences the propability of mutation of other genes.");
+
+				//impact
+				iterator =baseyIterator;
+				xiterator+=100;
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 151)
+				.attr('height', 25)
+				.style("stroke-width", 0)
+				.attr('fill', 'white').style("opacity", 0);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+21)
+				.attr('y', iterator-2)
+				.style("stroke-width", 0.8)
+				.text('Impact on other genes');
+
+				iterator= baseyIterator;
+
+				for (let key in geneList) {
+					iterator = iterator + 29;
+
+				let hilfsstring = trimTextToValid(key);
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 151)
+				.attr('height', 25)
+				.attr('id', 'impactRect'+hilfsstring)
+				.attr('stroke', 'white')
+				.style("stroke-width", 0)
+				.attr('fill', 'white');
+
+				let valueself = parseFloat(geneList[key].getImpact());
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+(150/2)-11)
+				.attr('y', iterator-2)
+				.attr('id', 'impactText'+hilfsstring)
+				.style("stroke-width", 0.8)
+				.text((valueself.toFixed(2)));
+	}
+
+
+				xiterator+=150;
+				iterator=baseyIterator;
+
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 151)
+				.attr('height', 25)
+				.style("stroke-width", 0)
+				.attr('fill', 'white').style("opacity", 0);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+(150/2)-46)
+				.attr('y', iterator-2)
+				.style("stroke-width", 0.8)
+				.text('Mutation in period?');
+
+				iterator = 20;
+				for (let key in geneList) {
+					iterator = iterator + 29;
+
+				let hilfsstring = trimTextToValid(key);
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 151)
+				.attr('height', 25)
+				.attr('id', 'timeRect'+hilfsstring)
+				.attr('stroke', 'white')
+				.style("stroke-width", 0)
+				.attr('fill', 'white');
+
+				let valueself = parseInt(geneList[key].getCounter())/100;
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+75-15)
+				.attr('y', iterator-2)
+				.attr('id', 'timeText'+hilfsstring)
+				.style("stroke-width", 0.8)
+				.text((valueself));
+	  }
+				xiterator+=150;
+				iterator = baseyIterator;
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 151)
+				.attr('height', 25)
+				.attr('stroke', 'white')
+				.style("stroke-width", 0)
+				.attr('fill', 'white')
+				.style("opacity", 0);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+160/2-61)
+				.attr('y', iterator-2)
+				.text('Mutation is next event?')
+				.style("stroke-width", 0.8)
+				.append('text');
+				iterator= baseyIterator;
+
+				for (let key in geneList) {
+					iterator = iterator + 29;
+				let hilfsstring = trimTextToValid(key);
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 151)
+				.attr('height', 25)
+				.attr('id', 'v0Rect'+hilfsstring)
+				.attr('stroke', 'white')
+				.style("stroke-width", 0)
+				.attr('fill', 'white');
+
+				let valueself = (calculatePercentage(key));
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+80-20)
+				.attr('y', iterator-2)
+				.style("stroke-width", 0.8)
+				.attr('id', 'v0'+hilfsstring)
+				.text(valueself); 	 
+
+
+
+	}
+
+				xiterator +=150;
+				iterator = baseyIterator;
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 51)
+				.attr('height', 25)
+				.attr('id', 'deltaRect')
+				.attr('stroke', 'white')
+				.style("stroke-width", 0)
+				.style("opacity", 0)
+				.attr('fill', 'white');
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+20)
+				.attr('y', iterator)
+				.attr("stroke-width", "1")
+				.attr('id', 'deltaText')
+				.style("stroke-width", 0.8)
+				.style("opacity", 0)
+				.style("font-size", "22px")
+				.text('\u0394');
+
+				for (let key in geneList) {
+					iterator = iterator + 29;
+				let hilfsstring = trimTextToValid(key);
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 51)
+				.attr('height', 25)
+				.attr('id', 'vRect'+hilfsstring)
+				.attr('stroke', 'white')
+				.style("stroke-width", 0)
+				.attr('fill', 'white')
+				.style("opacity", 0);
+
+
+				let valueself = (goodOutputText(geneList[key].getValue(key)));
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+10)
+				.attr('y', iterator-2)
+				.style("opacity", 0)
+				.attr('id', 'v'+hilfsstring)
+				.style("stroke-width", 0.8)
+				.text("NaN");
+	  }
+				//low-Apa-line
+
+				d3.select('body').select('svg').append('line').attr('id', 'upperApaLine').attr('x1', baseXIterator)
+				.attr('y1', baseyIterator-18).attr('y2', baseyIterator-18);
+				d3.select('body').select('svg').append('line').attr('id', 'LowerApaLine').attr('x1', baseXIterator)
+				.attr('y1', baseyIterator+7).attr('y2', baseyIterator+7);
+				d3.select('body').select('svg').append('line').attr('id', 'LowApaLine').attr('x1', baseXIterator)
+				.attr('y1', iterator+7).attr('y2', iterator+7);
+				d3.select('#upperApaLine').attr('x2', xiterator).attr('stroke', 'black');
+				d3.select('#LowerApaLine').attr('x2', xiterator).attr('stroke', 'black');
+				d3.select('#LowApaLine').attr('x2', xiterator).attr('stroke', 'black');
+
+				xiterator +=60;
+				iterator = baseyIterator;
+
+				let lastIndex;
+				for (let key in geneList) {
+					let hilfsstring = trimTextToValid(key);
+				iterator=iterator+29;
+
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 0)
+				.attr('id', 'progressRect'+hilfsstring)
+				.attr('height', 25)
+				.attr('fill', 'grey').style("opacity", 1);
+
+				lastYRect= iterator+7;
+				lastIndex=key;
+	}
+
+				var x = d3.scaleLinear()
+				.domain([0, 1])
+				.range([xiterator, xiterator+500]);
+
+				d3.select('svg') .append("g")
+				.attr("transform", "translate(0,"+lastYRect+")")
+				.attr('x', 400).attr('y', 400)
+				.call(d3.axisBottom(x));
+
+				d3.select('body').select('svg').append('rect');
+
+				iterator = 60;
+
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 110)
+				.attr('height', 25)
+				.attr('fill', 'WhiteSmoke')
+				.on("click", simulateMevent);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+18)
+				.attr('y', iterator-2)
+				.text("Simulate event");
+
+				xiterator +=120;
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 190)
+				.attr('height', 25)
+				.attr('fill', 'WhiteSmoke')
+				.on("click", simulateTumor);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+27)
+				.attr('y', iterator-2)
+				.text("Simulate observation period");
+				xiterator +=200;
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 60)
+				.attr('height', 25)
+				.attr('id', 'resetButton')
+				.attr('fill', 'WhiteSmoke')
+				.on("click", reset);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+15)
+				.attr('y', iterator-2)
+				.text("Reset");
+
+				xiterator +=70;
+				d3.select('body').select('svg').append('rect')
+				.attr('x', xiterator)
+				.attr('y', iterator-18)
+				.attr('width', 100)
+				.attr('height', 25)
+				.attr('fill', 'WhiteSmoke')
+				.on("click", newDataset);
+
+				d3.select('body').select('svg').append('text')
+				.attr('x', xiterator+18)
+				.attr('y', iterator-2)
+				.text("New Dataset");
+
+
+				hilfsstring = trimTextToValid(lastIndex);
+				d3.select('#baseRect'+hilfsstring).dispatch('mouseover');
+				d3.select('#baseRect'+hilfsstring).dispatch('mouseout');
+				updateBaseLine();
+	}
+
+
+
+		</script>
+	</html>
